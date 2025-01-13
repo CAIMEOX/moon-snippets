@@ -1,0 +1,10 @@
+{
+  "name": "CAIMEOX/snippets",
+  "version": "0.1.0",
+  "readme": "README.md",
+  "repository": "",
+  "license": "MIT",
+  "keywords": ["snippets"],
+  "description": "My random MoonBit snippets collection",
+  "source": "src"
+}
