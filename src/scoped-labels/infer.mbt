@@ -15,11 +15,48 @@ fn create_tvar(lvl : Level) -> Type {
 }
 
 ///|
-type! TypeError String
+fn create_rvar(lvl : Level) -> Row {
+  RVar({ val: Unbound(create_id(), lvl) })
+}
 
 ///|
-fn occurs(self : Type, tv_id : Int, lvl : Level) -> Unit!TypeError {
-  fn go(x) -> Unit!TypeError {
+type! TypeError String
+
+///| Checks if a type variable occurs in a type
+trait Occurrence {
+  occurs(Self, Int, Level) -> Unit!TypeError
+}
+
+///|
+impl[V : Occurrence] Occurrence for Ref[TypeVar[V]] with occurs(self, id, lvl) {
+  match self {
+    { val: Link(t) } => t.occurs!(id, lvl)
+    { val: Unbound(other_tv_id, other_lvl) } =>
+      if id == other_tv_id {
+        raise TypeError("occurs: recursive type")
+      } else {
+        let lvl = @math.minimum(lvl, other_lvl)
+        self.val = Unbound(other_tv_id, lvl)
+      }
+    _ => raise TypeError("occurs: can not occur check a generic type variable")
+  }
+}
+
+///|
+impl Occurrence for Row with occurs(self, id, lvl) {
+  match self {
+    REmpty => ()
+    RExtend(_, ty, row) => {
+      ty.occurs!(id, lvl)
+      row.occurs!(id, lvl)
+    }
+    RVar(tv) => tv.occurs!(id, lvl)
+  }
+}
+
+///|
+impl Occurrence for Type with occurs(self, id, lvl) {
+  fn go(x : Type) -> Unit!TypeError {
     match x {
       TConst(_) => ()
       TApp(t1, rets) => {
@@ -34,20 +71,17 @@ fn occurs(self : Type, tv_id : Int, lvl : Level) -> Unit!TypeError {
         }
         go!(ret)
       }
-      TVar({ val: Link(t) }) => occurs!(t, tv_id, lvl)
-      TVar({ val: Generic(_) }) =>
-        raise TypeError("occurs: unexpected generic type variable")
-      TVar({ val: Unbound(other_tv_id, other_lvl) } as otv) =>
-        if tv_id != other_tv_id {
-          let lvl = @math.minimum(lvl, other_lvl)
-          otv.val = Unbound(other_tv_id, lvl)
-        } else {
-          raise TypeError("occurs: recursive type")
-        }
+      TVar(tv) => tv.occurs!(id, lvl)
+      TRecord(record) => record.occurs!(id, lvl)
     }
   }
 
   go!(self)
+}
+
+///| Ability to generalize a type
+trait Generalization {
+  generalize(Self, Level) -> Self
 }
 
 ///|
@@ -78,7 +112,7 @@ fn unify(self : Type, other : Type) -> Unit!TypeError {
     (TVar({ val: Link(t1) }), TVar({ val: Link(t2) })) => unify!(t1, t2)
     (TVar({ val: Unbound(id, level) } as v), ty)
     | (ty, TVar({ val: Unbound(id, level) } as v)) => {
-      occurs!(ty, id, level)
+      ty.occurs!(id, level)
       v.val = Link(ty)
     }
     (x, y) => raise TypeError("unify: can not unify \{x} with \{y}")
@@ -86,7 +120,7 @@ fn unify(self : Type, other : Type) -> Unit!TypeError {
 }
 
 ///|
-fn generalize(self : Type, lvl : Level) -> Type {
+impl Generalization for Type with generalize(self, lvl) {
   match self {
     TVar({ val: Unbound(id, other_lvl) }) =>
       if other_lvl > lvl {
@@ -95,36 +129,67 @@ fn generalize(self : Type, lvl : Level) -> Type {
         self
       }
     TApp(t, args) =>
-      TApp(generalize(t, lvl), args.map(fn { x => generalize(x, lvl) }))
+      TApp(t.generalize(lvl), args.map(fn { x => x.generalize(lvl) }))
     TArr(args, ret) =>
-      TArr(args.map(fn { x => generalize(x, lvl) }), generalize(ret, lvl))
-    TVar({ val: Link(t) }) => generalize(t, lvl)
+      TArr(args.map(fn { x => x.generalize(lvl) }), ret.generalize(lvl))
+    TVar({ val: Link(t) }) => t.generalize(lvl)
+    TRecord(rec) => TRecord(rec.generalize(lvl))
+    _ => self
+  }
+}
+
+///|
+impl Generalization for Row with generalize(self, lvl) {
+  match self {
+    REmpty => REmpty
+    RExtend(label, ty, row) =>
+      RExtend(label, ty.generalize(lvl), row.generalize(lvl))
+    RVar({ val: Link(t) }) => t.generalize(lvl)
     _ => self
   }
 }
 
 ///|
 fn instantiate(self : Type, lvl : Level) -> Type {
-  let tracking = Map::new()
-  fn go(x) -> Type {
-    match x {
+  let tracking_typ = Map::new()
+  let tracking_row = Map::new()
+  fn inst_typ(ty) {
+    match ty {
       TVar({ val: Generic(id) }) =>
-        match tracking[id] {
+        match tracking_typ[id] {
           Some(x) => x
           None => {
             let tvar = create_tvar(lvl)
-            tracking[id] = tvar
+            tracking_typ[id] = tvar
             tvar
           }
         }
-      TApp(t, args) => TApp(go(t), args.map(fn { x => go(x) }))
-      TArr(args, ret) => TArr(args.map(fn { x => go(x) }), go(ret))
-      TVar({ val: Link(t) }) => go(t)
-      _ => x
+      TVar({ val: Link(t) }) => inst_typ(t)
+      TApp(t, args) => TApp(inst_typ(t), args.map(fn { x => inst_typ(x) }))
+      TArr(args, ret) => TArr(args.map(fn { x => inst_typ(x) }), inst_typ(ret))
+      TRecord(row) => TRecord(inst_row(row))
+      _ => ty
     }
   }
 
-  go(self)
+  fn inst_row {
+    REmpty => REmpty
+    RExtend(label, field_typ, row_typ) =>
+      RExtend(label, inst_typ(field_typ), inst_row(row_typ))
+    RVar({ val: Link(t) }) => inst_row(t)
+    RVar({ val: Generic(id) }) =>
+      match tracking_row[id] {
+        Some(x) => x
+        None => {
+          let tvar = create_rvar(lvl)
+          tracking_row[id] = tvar
+          tvar
+        }
+      }
+    x => x
+  }
+
+  inst_typ(self)
 }
 
 ///|
@@ -181,9 +246,35 @@ pub fn infer(
     }
     Let(name, e1, e2) => {
       let t1 = infer!(e1, lvl.enter(), env)
-      let t1_gen = generalize(t1, lvl)
+      let t1_gen = t1.generalize(lvl)
       let env_prim = env.add(name, t1_gen)
       infer!(e2, lvl, env_prim)
+    }
+    RecordEmpty => TRecord(REmpty)
+    RecordSelect(exp, label) => {
+      let rest_ty = create_rvar(lvl)
+      let field_ty = create_tvar(lvl)
+      let rec_ty = TRecord(RExtend(label, field_ty, rest_ty))
+      let exp_ty = infer!(exp, lvl, env)
+      unify!(exp_ty, rec_ty)
+      field_ty
+    }
+    RecordRestrict(exp, label) => {
+      let rest_ty = create_rvar(lvl)
+      let field_ty = create_tvar(lvl)
+      let param_ty = TRecord(RExtend(label, field_ty, rest_ty))
+      let exp_ty = infer!(exp, lvl, env)
+      unify!(param_ty, exp_ty)
+      TRecord(rest_ty)
+    }
+    RecordExtend(label, exp, rest_exp) => {
+      let field_ty = create_tvar(lvl)
+      let rest_ty = create_rvar(lvl)
+      let old_row = TRecord(rest_ty)
+      let ret_ty = TRecord(RExtend(label, field_ty, rest_ty))
+      unify!(old_row, infer!(rest_exp, lvl, env))
+      unify!(field_ty, infer!(exp, lvl, env))
+      ret_ty
     }
   }
 }
