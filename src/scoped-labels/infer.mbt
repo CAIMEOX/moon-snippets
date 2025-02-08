@@ -85,7 +85,12 @@ trait Generalization {
 }
 
 ///|
-fn unify(self : Type, other : Type) -> Unit!TypeError {
+trait Unification {
+  unify(Self, Self) -> Unit!TypeError
+}
+
+///|
+impl Unification for Type with unify(self, other) {
   match (self, other) {
     (TConst(x), TConst(y)) =>
       if x != y {
@@ -96,26 +101,89 @@ fn unify(self : Type, other : Type) -> Unit!TypeError {
         raise TypeError("unify: functions have different arity")
       } else {
         for i in 0..<ls1.length() {
-          unify!(ls1[i], ls2[i])
+          ls1[i].unify!(ls2[i])
         }
-        unify!(r1, r2)
+        r1.unify!(r2)
       }
     (TApp(t1, args1), TApp(t2, args2)) =>
       if args1.length() != args2.length() {
         raise TypeError("unify: type constructors have different arity")
       } else {
-        unify!(t1, t2)
+        t1.unify!(t2)
         for i in 0..<args1.length() {
-          unify!(args1[i], args2[i])
+          args1[i].unify!(args2[i])
         }
       }
-    (TVar({ val: Link(t1) }), TVar({ val: Link(t2) })) => unify!(t1, t2)
+    (TVar({ val: Link(t1) }), TVar({ val: Link(t2) })) => t1.unify!(t2)
     (TVar({ val: Unbound(id, level) } as v), ty)
     | (ty, TVar({ val: Unbound(id, level) } as v)) => {
       ty.occurs!(id, level)
       v.val = Link(ty)
     }
+    (TRecord(t1), TRecord(t2)) => t1.unify!(t2)
     (x, y) => raise TypeError("unify: can not unify \{x} with \{y}")
+  }
+}
+
+// | TRowExtend (label1, field_ty1, rest_row1), (TRowExtend _ as row2) ->
+//         let rest_row1_tvar_ref_option =
+//           match rest_row1 with
+//           | TVar ({ contents = Unbound _ } as tvar_ref) -> Some tvar_ref
+//           | _ -> None
+//         in
+//         let rest_row2 = rewrite_row row2 label1 field_ty1 in
+//         (match rest_row1_tvar_ref_option with
+//         | Some { contents = Link _ } ->
+//             error "recursive row types" (* why this is row recursive *)
+//         | _ -> ());
+//         unify rest_row1 rest_row2
+
+///|
+impl Unification for Row with unify(self, other) {
+  match (self, other) {
+    (REmpty, REmpty) => ()
+    (RVar({ val: Link(t1) }), RVar({ val: Link(t2) })) => t1.unify!(t2)
+    (RVar({ val: Unbound(id, level) } as v), ty)
+    | (ty, RVar({ val: Unbound(id, level) } as v)) => {
+      ty.occurs!(id, level)
+      v.val = Link(ty)
+    }
+    (RExtend(label1, field_ty1, rest_row1), RExtend(_) as row2) => {
+      let rest_row1_tvar_ref_option = match rest_row1 {
+        RVar({ val: Unbound(_) } as tvar_ref) => Some(tvar_ref)
+        _ => None
+      }
+      let rest_row2 = rw_row!(row2, label1, field_ty1)
+      match rest_row1_tvar_ref_option {
+        Some({ val: Link(_) }) => raise TypeError("unify: recursive row types")
+        _ => ()
+      }
+      rest_row1.unify!(rest_row2)
+    }
+    (r1, r2) =>
+      raise TypeError("unify: can not unify row types \{r1} and \{r2}")
+  }
+}
+
+///|
+fn rw_row(self : Row, label : String, field_ty : Type) -> Row!TypeError {
+  match self {
+    REmpty => raise TypeError("rw_row: row does not contain label \{label}")
+    RExtend(label2, field_ty2, rest_row2) =>
+      if label == label2 {
+        field_ty.unify!(field_ty2)
+        rest_row2
+      } else {
+        RExtend(label2, field_ty2, rw_row!(rest_row2, label, field_ty))
+      }
+    RVar({ val: Link(row2) }) => rw_row!(row2, label, field_ty)
+    RVar({ val: Unbound(_, lvl) } as rv) => {
+      let rest_row2 = create_rvar(lvl)
+      let ty2 = RExtend(label, field_ty, rest_row2)
+      rv.val = Link(ty2)
+      rest_row2
+    }
+    _ => raise TypeError("rw_row: unexpected generic type")
   }
 }
 
@@ -216,7 +284,7 @@ fn match_fun(self : Type, param_num : Int) -> (Array[Type], Type)!TypeError {
 pub fn infer(
   self : Expr,
   lvl : Level,
-  env : @moonbitlang/core/immut/hashmap.T[String, Type]
+  env : @immut/hashmap.T[String, Type]
 ) -> Type!TypeError {
   match self {
     Var(name) =>
@@ -240,7 +308,7 @@ pub fn infer(
       let (param_arr, ret) = match_fun!(f_ty, args.length())
       for i in 0..<args.length() {
         let arg_ty = infer!(args[i], lvl, env)
-        unify!(param_arr[i], arg_ty)
+        param_arr[i].unify!(arg_ty)
       }
       ret
     }
@@ -256,7 +324,7 @@ pub fn infer(
       let field_ty = create_tvar(lvl)
       let rec_ty = TRecord(RExtend(label, field_ty, rest_ty))
       let exp_ty = infer!(exp, lvl, env)
-      unify!(exp_ty, rec_ty)
+      exp_ty.unify!(rec_ty)
       field_ty
     }
     RecordRestrict(exp, label) => {
@@ -264,7 +332,7 @@ pub fn infer(
       let field_ty = create_tvar(lvl)
       let param_ty = TRecord(RExtend(label, field_ty, rest_ty))
       let exp_ty = infer!(exp, lvl, env)
-      unify!(param_ty, exp_ty)
+      param_ty.unify!(exp_ty)
       TRecord(rest_ty)
     }
     RecordExtend(label, exp, rest_exp) => {
@@ -272,8 +340,8 @@ pub fn infer(
       let rest_ty = create_rvar(lvl)
       let old_row = TRecord(rest_ty)
       let ret_ty = TRecord(RExtend(label, field_ty, rest_ty))
-      unify!(old_row, infer!(rest_exp, lvl, env))
-      unify!(field_ty, infer!(exp, lvl, env))
+      old_row.unify!(infer!(rest_exp, lvl, env))
+      field_ty.unify!(infer!(exp, lvl, env))
       ret_ty
     }
   }
