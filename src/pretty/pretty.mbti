@@ -1,0 +1,69 @@
+package CAIMEOX/snippets/pretty
+
+// Values
+fn best(DOC, Int, Int) -> Doc
+
+fn between(DOC, String, String) -> DOC
+
+fn concat(DOC, DOC) -> DOC
+
+fn fill_words(Array[DOC]) -> DOC
+
+fn flatten(DOC) -> DOC
+
+fn fold(Array[DOC], (DOC, DOC) -> DOC) -> DOC
+
+fn group(DOC) -> DOC
+
+fn layout(Doc) -> String
+
+fn line() -> DOC
+
+fn nest(Int, DOC) -> DOC
+
+fn nil() -> DOC
+
+fn op_add(DOC, DOC) -> DOC
+
+fn op_div(DOC, DOC) -> DOC
+
+fn op_mod(DOC, DOC) -> DOC
+
+fn op_shl(DOC, String) -> DOC
+
+fn op_shr(DOC, String) -> DOC
+
+fn op_sub(DOC, DOC) -> DOC
+
+fn pretty(DOC, Int) -> String
+
+fn spread(Array[DOC]) -> DOC
+
+fn stack(Array[DOC]) -> DOC
+
+fn text(String) -> DOC
+
+// Types and methods
+type DOC
+impl DOC {
+  best(Self, Int, Int) -> Doc
+  between(Self, String, String) -> Self
+  flatten(Self) -> Self
+  op_add(Self, Self) -> Self
+  op_div(Self, Self) -> Self
+  op_mod(Self, Self) -> Self
+  op_shl(Self, String) -> Self
+  op_shr(Self, String) -> Self
+  op_sub(Self, Self) -> Self
+  pretty(Self, Int) -> String
+}
+
+type Doc
+impl Doc {
+  layout(Self) -> String
+}
+
+// Type aliases
+
+// Traits
+

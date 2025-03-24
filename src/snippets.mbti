@@ -1,0 +1,83 @@
+package CAIMEOX/snippets
+
+// Values
+fn insert[T : Dynamic](DynMap, T) -> Unit
+
+fn query[T : Dynamic](DynMap) -> T?
+
+fn zip[A, B](Iter[A], Iter[B]) -> Iter[(A, B)]
+
+fn zip_[A, B](Iter[A], Iter[B]) -> Iter[(A, B)]
+
+// Types and methods
+pub type Dense[V, D] (V) -> D
+
+pub struct Dual[D] {
+  pri : D
+  tan : D
+}
+
+pub type Dyn Error
+
+type DynMap
+impl DynMap {
+  insert[T : Dynamic](Self, T) -> Unit
+  query[T : Dynamic](Self) -> T?
+}
+
+pub type! IntE Int
+
+pub struct Kronecker[V, D, E] {
+  _phantom : D
+  delta : (V) -> E
+}
+
+pub struct Module[D, M] {
+  scale : (D, M) -> M
+}
+
+pub struct Nagata[D, E] {
+  priN : D
+  tanN : E
+}
+
+pub struct Semiring[D] {
+  zero : D
+  one : D
+  plus : (D, D) -> D
+  times : (D, D) -> D
+}
+
+pub type! ShowE &Show
+
+pub type! StringE String
+
+pub type TypeRep String
+impl Eq for TypeRep
+impl Hash for TypeRep
+
+pub type! UIntE UInt
+
+pub type! UnitE Unit
+
+// Type aliases
+
+// Traits
+trait Dynamic
+
+pub trait Monoid {
+  zero() -> Self
+  plus(Self, Self) -> Self
+}
+
+pub trait SemiRing {
+  zero() -> Self
+  one() -> Self
+  plus(Self, Self) -> Self
+  times(Self, Self) -> Self
+}
+
+pub(open) trait SumTuple {
+  sumOf(Self) -> Int
+}
+

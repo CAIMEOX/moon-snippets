@@ -1,0 +1,39 @@
+package CAIMEOX/snippets/scoped-labels
+
+alias @moonbitlang/core/immut/hashmap as @hashmap
+
+// Values
+fn enter(Level) -> Level
+
+fn infer(Expr, Level, @hashmap.T[String, Type]) -> Type!TypeError
+
+// Types and methods
+type Expr
+impl Expr {
+  infer(Self, Level, @hashmap.T[String, Type]) -> Type!TypeError
+}
+
+type Level
+impl Level {
+  enter(Self) -> Self
+}
+impl Compare for Level
+impl Eq for Level
+
+type Row
+
+type Type
+
+type TypeError
+
+type TypeVar[T]
+
+// Type aliases
+
+// Traits
+trait Generalization
+
+trait Occurrence
+
+trait Unification
+

@@ -168,11 +168,16 @@ pub fn fill_words(words : Array[DOC]) -> DOC {
 }
 
 ///|
-impl Show for DOC with to_string(s) { s.pretty(80) }
+impl Show for DOC with to_string(s) {
+  s.pretty(80)
+}
 
 ///|
-impl Show for DOC with output(s, l) { l.write_string(s.to_string()) }
+impl Show for DOC with output(s, l) {
+  l.write_string(s.to_string())
+}
 
+///|
 test "show tree" {
   enum Tree {
     Node(String, Array[Tree])

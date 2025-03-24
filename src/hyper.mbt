@@ -2,7 +2,7 @@
 typealias Z[A, B] = (Zip[A, B]) -> Iter[(A, B)]
 
 ///|
-struct Zip[A, B] {
+priv struct Zip[A, B] {
   runZip : (A) -> (Z[A, B]) -> Iter[(A, B)]
 }
 
@@ -23,6 +23,7 @@ pub fn zip_[A, B](xs : Iter[A], ys : Iter[B]) -> Iter[(A, B)] {
   xz(yz)
 }
 
+///|
 test {
   let i1 = [1, 2, 3, 5].iter()
   let i2 = [7, 8, 9, 4].iter()
@@ -31,7 +32,7 @@ test {
 }
 
 ///| Hyperfunction version of zip
-struct Hyper[A, B] {
+priv struct Hyper[A, B] {
   invoke : (Hyper[B, A]) -> B
 }
 
@@ -63,6 +64,7 @@ pub fn zip[A, B](xs : Iter[A], ys : Iter[B]) -> Iter[(A, B)] {
   )
 }
 
+///|
 test {
   let i1 = [1, 2, 3].iter()
   let i2 = [4, 5, 6].iter()
@@ -73,7 +75,8 @@ test {
   inspect!(zip(i3, i1), content="[(0, 1), (7, 2), (8, 3)]")
 }
 
-test "effect" { 
+///|
+test "effect" {
   let i1 = [1, 2, 3].iter().map(println)
   let i2 = [4, 5, 6].iter().map(println)
   inspect!(zip(i2, i1), content="[((), ()), ((), ()), ((), ())]")
