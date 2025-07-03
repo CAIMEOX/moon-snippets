@@ -16,17 +16,17 @@ enum Doc {
 }
 
 ///|
-pub fn op_add(self : DOC, other : DOC) -> DOC {
+impl Add for DOC with op_add(self : DOC, other : DOC) -> DOC {
   CONCAT(self, other)
 }
 
 ///|
-pub fn op_shr(self : DOC, other : String) -> DOC {
+pub fn tr(self : DOC, other : String) -> DOC {
   self + text(other)
 }
 
 ///|
-pub fn op_shl(self : DOC, other : String) -> DOC {
+pub fn tl(self : DOC, other : String) -> DOC {
   text(other) + self
 }
 
@@ -67,16 +67,16 @@ pub fn concat(x : DOC, y : DOC) -> DOC {
 
 ///|
 pub fn group(d : DOC) -> DOC {
-  UNION(flatten(d), d)
+  UNION(d.flatten(), d)
 }
 
 ///|
 pub fn flatten(self : DOC) -> DOC {
   match self {
     NIL => NIL
-    CONCAT(x, y) => CONCAT(flatten(x), flatten(y))
-    NEST(i, d) => NEST(i, flatten(d))
-    UNION(x, _) => flatten(x)
+    CONCAT(x, y) => CONCAT(x.flatten(), y.flatten())
+    NEST(i, d) => NEST(i, d.flatten())
+    UNION(x, _) => x.flatten()
     LINE => TEXT(" ")
     TEXT(s) => TEXT(s)
   }
@@ -86,8 +86,8 @@ pub fn flatten(self : DOC) -> DOC {
 pub fn layout(self : Doc) -> String {
   match self {
     Nil => ""
-    Text(s, d) => s + layout(d)
-    Line(i, d) => "\n" + " ".repeat(i) + layout(d)
+    Text(s, d) => s + d.layout()
+    Line(i, d) => "\n" + " ".repeat(i) + d.layout()
   }
 }
 
@@ -130,7 +130,7 @@ pub fn best(self : DOC, w : Int, k : Int) -> Doc {
 
 ///|
 pub fn pretty(self : DOC, w : Int) -> String {
-  layout(self.best(w, 0))
+  self.best(w, 0).layout()
 }
 
 ///|
@@ -140,12 +140,12 @@ pub fn fold(ls : Array[DOC], f : (DOC, DOC) -> DOC) -> DOC {
 
 ///|
 pub fn spread(ls : Array[DOC]) -> DOC {
-  fold(ls, op_sub)
+  fold(ls, DOC::op_sub)
 }
 
 ///|
 pub fn stack(ls : Array[DOC]) -> DOC {
-  fold(ls, op_div)
+  fold(ls, DOC::op_div)
 }
 
 ///|
@@ -182,24 +182,22 @@ test "show tree" {
   enum Tree {
     Node(String, Array[Tree])
   }
-  fn show_tree(self : Tree) -> DOC {
-    let Node(s, ts) = self
-    group(nest(s.length(), show_bracket(ts[:])) << s)
-  }
-
-  fn show_bracket(ts : ArrayView[Tree]) -> DOC {
+  letrec show_bracket = fn(ts : ArrayView[Tree]) -> DOC {
     match ts {
       [] => nil()
-      ts => nest(1, show_trees(ts)) << "[" >> "]"
+      ts => nest(1, show_trees(ts)).tl("[").tr("]")
     }
   }
-
-  fn show_trees(ts : ArrayView[Tree]) -> DOC {
+  and show_trees = fn(ts : ArrayView[Tree]) -> DOC {
     match ts {
       [t] => show_tree(t)
-      [t, .. ts] => (show_tree(t) >> ",") + line() + show_trees(ts)
+      [t, .. ts] => show_tree(t).tr(",") + line() + show_trees(ts)
       [] => abort("unreachable")
     }
+  }
+  and show_tree = fn(self : Tree) -> DOC {
+    let Node(s, ts) = self
+    group(nest(s.length(), show_bracket(ts[:])).tl(s))
   }
 
   let tree = Node("aaa", [
@@ -208,8 +206,8 @@ test "show tree" {
     Node("fff", [Node("gg", []), Node("hh", []), Node("ii", [])]),
   ])
   let doc = show_tree(tree)
-  inspect!(doc, content="aaa[bbbb[cc, dd], eee, fff[gg, hh, ii]]")
-  inspect!(
+  inspect(doc, content="aaa[bbbb[cc, dd], eee, fff[gg, hh, ii]]")
+  inspect(
     doc.pretty(20),
     content=
       #|aaa[bbbb[cc, dd],
@@ -217,7 +215,7 @@ test "show tree" {
       #|    fff[gg, hh, ii]]
     ,
   )
-  inspect!(
+  inspect(
     doc.pretty(10),
     content=
       #|aaa[bbbb[cc,
