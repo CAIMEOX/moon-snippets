@@ -9,6 +9,7 @@ I have written some very technical and interesting MoonBit code snippets, but th
 - [Extensible variant types and dynamic map](./src/dyn.mbt)
 - [Level based Hindley-Milner type inference](./src/hm/)
 - [Hindley-Milner with scoped labels extension](./src/scoped-labels/)
+- [Local Type Inference](./src/lti)
 - [A prettier printer](./src/pretty/)
 
 ## References
@@ -19,3 +20,5 @@ I have written some very technical and interesting MoonBit code snippets, but th
 - [Extensible records with scoped labels](https://www.microsoft.com/en-us/research/publication/extensible-records-with-scoped-labels)
 - [A prettier printer](https://homepages.inf.ed.ac.uk/wadler/papers/prettier/prettier.pdf)
 - [How OCaml type checker works -- or what polymorphism and garbage collection have in common](https://okmij.org/ftp/ML/generalization.html)
+- [Local Type Inference](https://www.cis.upenn.edu/~bcpierce/papers/lti-toplas.pdf)
+
